@@ -1,335 +1,206 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChatInterface } from './components/ChatInterface';
-import { AnalysisCard } from './components/AnalysisCard';
-import { MainContent } from './components/MainContent';
-import { OpenAIStreamCard } from './components/OpenAIStreamCard';
-import { useAnalysisSimulation } from './hooks/useAnalysisSimulation';
-import { useOpenAIStream } from './hooks/useOpenAIStream';
 import { 
-  Globe, 
-  Wrench, 
-  MessageCircle, 
-  Linkedin, 
-  Twitter,
-  Brain
-} from 'lucide-react';
+  RedditSentimentWidget,
+  TechStackWidget,
+  CompanyIntelligenceWidget,
+  NewsAnalysisWidget 
+} from './components/widgets';
+import { 
+  useRedditSentimentStream,
+  useTechStackStream,
+  useCompanyIntelligenceStream,
+  useNewsAnalysisStream 
+} from './hooks/useWidgetStreaming';
 
 function App() {
   const [query, setQuery] = useState('');
-  const [builtWithData, setBuiltWithData] = useState<any>(null);
-  const [linkedinData, setLinkedinData] = useState<any>(null);
-  const [redditData, setRedditData] = useState<any>(null);
-  const [analysisStatus, setAnalysisStatus] = useState('');
-  const [linkedinStatus, setLinkedinStatus] = useState('');
-  const [redditStatus, setRedditStatus] = useState('');
-  const [twitterData, setTwitterData] = useState<any>(null);
-  const [twitterStatus, setTwitterStatus] = useState('');
-  const [analysisType, setAnalysisType] = useState<'company' | 'person'>('company');
-  
-  const {
-    isAnalyzing,
-    currentStep,
-    steps,
-    activeCards,
-    stopAnalysis,
-    resetAnalysis,
-    setSteps,
-    setIsAnalyzing,
-    setActiveCards
-  } = useAnalysisSimulation();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const {
-    content: openaiContent,
-    isLoading: openaiLoading,
-    isStreaming: openaiStreaming,
-    error: openaiError,
-    streamWebAnalysis,
-    reset: resetOpenAI
-  } = useOpenAIStream();
-
-  // LinkedIn search function
-  const searchLinkedIn = async (companyName: string) => {
-    console.log('🔍 Starting LinkedIn search for:', companyName);
-    setLinkedinStatus('Searching LinkedIn...');
-    
-    try {
-      const response = await fetch("http://localhost:8000/linkedin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company: companyName }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`LinkedIn API responded with ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setLinkedinData(result.data);
-        setLinkedinStatus('LinkedIn search complete!');
-        console.log('✅ LinkedIn search successful:', result.data.length, 'companies found');
-      } else {
-        throw new Error(result.error || 'LinkedIn search failed');
-      }
-    } catch (error) {
-      console.error("💥 LinkedIn search failed:", error);
-      setLinkedinStatus(`LinkedIn search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setLinkedinData([]);
-    }
-  };
-
-  // Reddit search function
-  const searchReddit = async (searchTerm: string) => {
-    console.log('🔍 Starting Reddit search for:', searchTerm);
-    setRedditStatus('Searching Reddit...');
-    
-    try {
-      const response = await fetch("http://localhost:8000/reddit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ search: searchTerm }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Reddit API responded with ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setRedditData(result.data);
-        setRedditStatus('Reddit search complete!');
-        console.log('✅ Reddit search successful:', result.data.length, 'posts found');
-      } else {
-        throw new Error(result.error || 'Reddit search failed');
-      }
-    } catch (error) {
-      console.error("💥 Reddit search failed:", error);
-      setRedditStatus(`Reddit search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setRedditData([]);
-    }
-  };
-
-  // Twitter search function
-  const searchTwitter = async (searchTerm: string) => {
-    console.log('🔍 Starting Twitter search for:', searchTerm);
-    setTwitterStatus('Searching Twitter/X...');
-    
-    try {
-      const response = await fetch("http://localhost:8000/twitter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ search: searchTerm }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Twitter API responded with ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setTwitterData(result.data);
-        setTwitterStatus('Twitter search complete!');
-        console.log('✅ Twitter search successful:', result.data.length, 'posts found');
-      } else {
-        throw new Error(result.error || 'Twitter search failed');
-      }
-    } catch (error) {
-      console.error("💥 Twitter search failed:", error);
-      setTwitterStatus(`Twitter search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setTwitterData([]);
-    }
-  };
+  // Initialize all streaming hooks
+  const redditStream = useRedditSentimentStream();
+  const techStackStream = useTechStackStream();
+  const companyStream = useCompanyIntelligenceStream();
+  const newsStream = useNewsAnalysisStream();
 
   const handleSubmit = async (newQuery: string, type: 'company' | 'person' = 'company') => {
-    console.log('🚀 Starting analysis for:', newQuery);
+    console.log('🚀 Starting simultaneous analysis for:', newQuery);
     setQuery(newQuery);
-    setAnalysisType(type);
     setIsAnalyzing(true);
-    setBuiltWithData(null);
-    setLinkedinData(null);
-    setRedditData(null);
-    setTwitterData(null);
-    setAnalysisStatus('Analyzing website...');
-    setLinkedinStatus('');
-    setRedditStatus('');
-    setTwitterStatus('');
-    resetOpenAI();
-    setActiveCards(['builtwith', 'linkedin', 'reddit', 'twitter', 'openai']);
-    setSteps([
-      { id: 'builtwith', title: 'BuiltWith Analysis', status: 'active' },
-      { id: 'linkedin', title: 'LinkedIn Search', status: 'active' },
-      { id: 'reddit', title: 'Reddit Search', status: 'active' },
-      { id: 'twitter', title: 'Twitter/X Search', status: 'active' },
-      { id: 'openai', title: 'AI Web Analysis', status: 'active' }
-    ]);
 
-    // Start all searches immediately
-    searchLinkedIn(newQuery);
-    searchReddit(newQuery);
-    searchTwitter(newQuery);
+    // Reset all streams
+    redditStream.reset();
+    techStackStream.reset();
+    companyStream.reset();
+    newsStream.reset();
+
+    // Start all analyses simultaneously - this is the key improvement!
+    console.log('📡 Launching all analyses in parallel...');
     
-    // Start OpenAI analysis
-    streamWebAnalysis(newQuery);
-    
-    try {
-      console.log('📡 Making fetch request to backend...');
-      const response = await fetch("http://localhost:8000/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: newQuery }),
-      });
+    // All these calls happen simultaneously, not sequentially
+    redditStream.analyzeRedditSentiment(newQuery);
+    techStackStream.analyzeTechStack(newQuery);
+    companyStream.analyzeCompany(newQuery);
+    newsStream.analyzeNews(newQuery);
 
-      console.log('📡 Response status:', response.status, response.statusText);
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
+    console.log('✅ All analyses started - streaming in real-time!');
+  };
 
-      // Read the entire response as text
-      const fullResponse = await response.text();
-      console.log('📦 Full response received:', fullResponse.length, 'characters');
-      
-      // Extract JSON from the response
-      const resultsMatch = fullResponse.match(/RESULTS:\s*(\[[\s\S]*?\])/);
-      
-      if (resultsMatch && resultsMatch[1]) {
-        const jsonString = resultsMatch[1].trim();
-        console.log('💾 Extracted JSON:', jsonString);
-        
-        try {
-          const parsedData = JSON.parse(jsonString);
-          setBuiltWithData(parsedData);
-          setAnalysisStatus('Analysis complete!');
-          console.log('✅ Successfully parsed JSON data:', parsedData.length, 'items');
-        } catch (parseError) {
-          console.warn('Failed to parse JSON, storing as string:', parseError);
-          setBuiltWithData(jsonString);
-          setAnalysisStatus('Analysis complete (raw data)');
-        }
-      } else {
-        console.warn('No RESULTS found in response');
-        setBuiltWithData(fullResponse);
-        setAnalysisStatus('Analysis complete (no structured data)');
-      }
-      
-      setIsAnalyzing(false);
-    } catch (error) {
-      console.error("💥 Fetch request failed:", error);
-      setIsAnalyzing(false);
-      setAnalysisStatus(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+  const handleStop = () => {
+    console.log('⏹️ Stopping all analyses...');
+    setIsAnalyzing(false);
+    // Reset all streams
+    redditStream.reset();
+    techStackStream.reset();
+    companyStream.reset();
+    newsStream.reset();
   };
 
   const handleReset = () => {
+    console.log('🔄 Resetting all data...');
     setQuery('');
-    setBuiltWithData(null);
-    setLinkedinData(null);
-    setRedditData(null);
-    setTwitterData(null);
-    setAnalysisStatus('');
-    setLinkedinStatus('');
-    setRedditStatus('');
-    setTwitterStatus('');
-    resetAnalysis();
-    resetOpenAI();
+    setIsAnalyzing(false);
+    redditStream.reset();
+    techStackStream.reset();
+    companyStream.reset();
+    newsStream.reset();
   };
 
-  // Initial state - just the chat interface
-  if (!query && !isAnalyzing) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full">
+  // Check if any stream is active
+  const isAnyStreamActive = redditStream.isLoading || techStackStream.isLoading || 
+                           companyStream.isLoading || newsStream.isLoading ||
+                           redditStream.isStreaming || techStackStream.isStreaming ||
+                           companyStream.isStreaming || newsStream.isStreaming;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+            Company Intelligence Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Real-time analysis across multiple data sources with AI insights
+          </p>
+        </div>
+
+        {/* Search Interface */}
+        <div className="mb-8">
           <ChatInterface 
             onSubmit={handleSubmit}
-            isAnalyzing={isAnalyzing}
+            isAnalyzing={isAnyStreamActive}
+            onStop={handleStop}
           />
         </div>
-      </div>
-    );
-  }
 
-  // Analysis state - full layout
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-12 gap-4 h-[calc(100vh-2rem)]">
-          {/* Left sidebar - Analysis cards */}
-          <div className="col-span-3 space-y-3">
-            <OpenAIStreamCard
-              title="AI Web Analysis"
-              content={openaiContent}
-              isLoading={openaiLoading}
-              isStreaming={openaiStreaming}
-              error={openaiError}
-            />
-
-            <AnalysisCard
-              title="Reddit Analysis"
-              theme="orange"
-              icon={MessageCircle}
-              isActive={activeCards.includes('reddit')}
-              isCompleted={!!redditData && redditData.length > 0}
-              content={redditData}
-              statusMessage={redditStatus}
-            />
-
-            <AnalysisCard
-              title="LinkedIn"
-              theme="blue"
-              icon={Linkedin}
-              isActive={activeCards.includes('linkedin')}
-              isCompleted={!!linkedinData && linkedinData.length > 0}
-              content={linkedinData}
-              statusMessage={linkedinStatus}
-            />
+        {/* Current Query Display */}
+        {query && (
+          <div className="mb-6 text-center">
+            <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border">
+              <span className="text-gray-500 text-sm">Analyzing:</span>
+              <span className="font-semibold text-gray-800">{query}</span>
+              {isAnyStreamActive && (
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              )}
+            </div>
           </div>
+        )}
 
-          {/* Main content area */}
-          <div className="col-span-6">
-            <MainContent
-              query={query}
-              analysisType={analysisType}
-              currentStep={currentStep}
-              steps={steps}
-            />
+        {/* Control Buttons */}
+        {query && (
+          <div className="flex justify-center gap-4 mb-8">
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+            >
+              Reset All
+            </button>
+            {isAnyStreamActive && (
+              <button
+                onClick={handleStop}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+              >
+                Stop All Analyses
+              </button>
+            )}
           </div>
+        )}
 
-          {/* Right sidebar - Analysis cards */}
-          <div className="col-span-3 space-y-3">
-            <AnalysisCard
-              title="BuiltWith"
-              theme="green"
-              icon={Wrench}
-              isActive={activeCards.includes('builtwith')}
-              isCompleted={!isAnalyzing && !!builtWithData}
-              content={builtWithData}
-              statusMessage={analysisStatus}
-            />
+        {/* Main Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+          {/* Reddit Sentiment Widget */}
+          <RedditSentimentWidget
+            content={redditStream.content}
+            isLoading={redditStream.isLoading}
+            isStreaming={redditStream.isStreaming}
+            error={redditStream.error}
+            rawData={redditStream.rawData}
+          />
 
-            <AnalysisCard
-              title="Twitter/X"
-              theme="red"
-              icon={Twitter}
-              isActive={activeCards.includes('twitter')}
-              isCompleted={!!twitterData && twitterData.length > 0}
-              content={twitterData}
-              statusMessage={twitterStatus}
-            />
+          {/* Tech Stack Widget */}
+          <TechStackWidget
+            content={techStackStream.content}
+            isLoading={techStackStream.isLoading}
+            isStreaming={techStackStream.isStreaming}
+            error={techStackStream.error}
+            rawData={techStackStream.rawData}
+          />
+
+          {/* Company Intelligence Widget */}
+          <CompanyIntelligenceWidget
+            content={companyStream.content}
+            isLoading={companyStream.isLoading}
+            isStreaming={companyStream.isStreaming}
+            error={companyStream.error}
+            rawData={companyStream.rawData}
+          />
+
+          {/* News Analysis Widget */}
+          <NewsAnalysisWidget
+            content={newsStream.content}
+            isLoading={newsStream.isLoading}
+            isStreaming={newsStream.isStreaming}
+            error={newsStream.error}
+            rawData={newsStream.rawData}
+          />
+        </div>
+
+        {/* Status Footer */}
+        <div className="mt-8 text-center">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            <div className={`p-2 rounded ${redditStream.isStreaming ? 'bg-orange-100 text-orange-700' : redditStream.content ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              Reddit: {redditStream.isStreaming ? 'Streaming...' : redditStream.content ? 'Complete' : 'Ready'}
+            </div>
+            <div className={`p-2 rounded ${techStackStream.isStreaming ? 'bg-green-100 text-green-700' : techStackStream.content ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              Tech Stack: {techStackStream.isStreaming ? 'Analyzing...' : techStackStream.content ? 'Complete' : 'Ready'}
+            </div>
+            <div className={`p-2 rounded ${companyStream.isStreaming ? 'bg-blue-100 text-blue-700' : companyStream.content ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              Company: {companyStream.isStreaming ? 'Analyzing...' : companyStream.content ? 'Complete' : 'Ready'}
+            </div>
+            <div className={`p-2 rounded ${newsStream.isStreaming ? 'bg-purple-100 text-purple-700' : newsStream.content ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              News: {newsStream.isStreaming ? 'Analyzing...' : newsStream.content ? 'Complete' : 'Ready'}
+            </div>
           </div>
         </div>
 
-        {/* Bottom chat interface */}
-        <div className="fixed bottom-4 left-4 right-4">
-          <div className="max-w-2xl mx-auto">
-            <ChatInterface 
-              onSubmit={handleSubmit}
-              isAnalyzing={isAnalyzing}
-              onStop={stopAnalysis}
-            />
+        {/* Instructions */}
+        {!query && (
+          <div className="mt-12 text-center">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 max-w-2xl mx-auto">
+              <h3 className="font-semibold text-gray-800 mb-2">How it works</h3>
+              <p className="text-gray-600 text-sm">
+                Enter a company name above and watch as four AI agents simultaneously analyze:
+              </p>
+              <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                <div className="text-orange-600">📊 Reddit sentiment analysis</div>
+                <div className="text-green-600">🔧 Technology stack insights</div>
+                <div className="text-blue-600">🏢 Business intelligence</div>
+                <div className="text-purple-600">📰 Latest news coverage</div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

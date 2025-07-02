@@ -6,6 +6,8 @@ interface ApiKeyInputProps {
   initialApiKey?: string;
 }
 
+
+// good stuff
 export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ 
   onApiKeyChange, 
   initialApiKey = '' 
